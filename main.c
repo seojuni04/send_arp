@@ -64,7 +64,7 @@ void make_arp_header(char *sender_ip, char *target_ip, struct ethhdr *ethh, stru
     sscanf(target_ip, "%d.%d.%d.%d", arph->arp_tpa, arph->arp_tpa+1, arph->arp_tpa+2, arph->arp_tpa+3);
     for(int i=0; i<6; i++){
         arph->arp_sha[i] = ethh->h_source[i];
-        arph->arp_tha[i] = ethh->h_dest[i];
+        arph->arp_tha[i] = 0;
     }
 }
 
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     const u_char *packet;      /* The actual packet */
     struct ether_header *ethh;
     struct ether_arp *arph;
-    int packet_length = 0;
+    u_char arp_packet[42];
 
     if (argc < 4) {
         fprintf(stderr, "Usage: %s <interface> <sender ip> <target ip>\n", argv[0]);
@@ -108,6 +108,15 @@ int main(int argc, char *argv[])
 
     /* Make ARP Header */
     make_arp_header(argv[2], argv[3], &ethh, &arph);
+    printf("1\n");
+    /* Send Packet */
+    memset(0xff, )
+    memcpy(arp_packet, &ethh, 14);
+    printf("2\n");
+    memcpy(arp_packet+14, &arph, 28);
+    printf("3\n");
+    printf("%d\n", sizeof(arp_packet));
+    pcap_sendpacket(handle, arp_packet, sizeof(arp_packet));
 
     return 0;
 }
