@@ -16,6 +16,9 @@
 #include <sys/socket.h>
 #include <netinet/ether.h>
 
+#define HAL 6
+#define PAL 4
+
 void get_mac_addr(struct ethhdr *ethh, char *interface){
     int sock = socket(PF_INET, SOCK_DGRAM, 0);
     struct ifreq req;
@@ -48,6 +51,21 @@ void make_eth_header(char *interface, char *sender_ip, struct ethhdr *ethh){
     get_mac_addr(ethh, interface);
     printf("dest mac : %s\n", ether_ntoa((struct ether_addr *)ethh->h_dest));
     printf("source mac : %s\n", ether_ntoa((struct ether_addr *)ethh->h_source));
+}
+
+void make_arp_header(char *sender_ip, char *target_ip, struct ethhdr *ethh, struct ether_arp *arph){
+    arph->ea_hdr.ar_hrd = htons(ARPHRD_ETHER);
+    arph->ea_hdr.ar_pro = htons(ETH_P_IP);
+    arph->ea_hdr.ar_hln = HAL;
+    arph->ea_hdr.ar_pln = PAL;
+    arph->ea_hdr.ar_op = htons(ARPOP_REQUEST);
+
+    sscanf(sender_ip, "%d.%d.%d.%d", arph->arp_spa, arph->arp_spa+1, arph->arp_spa+2, arph->arp_spa+3);
+    sscanf(target_ip, "%d.%d.%d.%d", arph->arp_tpa, arph->arp_tpa+1, arph->arp_tpa+2, arph->arp_tpa+3);
+    for(int i=0; i<6; i++){
+        arph->arp_sha[i] = ethh->h_source[i];
+        arph->arp_tha[i] = ethh->h_dest[i];
+    }
 }
 
 int main(int argc, char *argv[])
@@ -87,6 +105,9 @@ int main(int argc, char *argv[])
 
     /* Make Ethernet Header */
     make_eth_header(interface, argv[2], &ethh);
+
+    /* Make ARP Header */
+    make_arp_header(argv[2], argv[3], &ethh, &arph);
 
     return 0;
 }
